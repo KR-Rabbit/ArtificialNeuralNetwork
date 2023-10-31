@@ -19,15 +19,15 @@
    交叉熵损失函数是分类问题中常用的损失函数，其定义如下：
    <img src="images/CrossEntropyLoss.png">
 
-2. ### Softmax
+2. ### Sigmoid
 
-   Softmax函数是一个常用的激活函数，其定义如下：
+   Sigmoid函数是一个常用的激活函数，其定义如下：
    <img src="images/Softmax.png">
 3. ### -
 
    梯度是一个向量，其方向是函数值增加最快的方向，其大小是函数值增加最快的速率。
    <img src="images/gradient.png">
-   Softmax函数的导数为
+   Sigmoid函数的导数为
    <img src="images/grad_softmax.png">
    交叉熵损失对于Softmax输出的梯度为
    <img src="images/grad_loss.png">
