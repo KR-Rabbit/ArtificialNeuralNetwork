@@ -4,6 +4,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from model import NeuralNetwork
+from utils import test
 from utils.data import MNIST, save_data, show_save_fig
 
 mnist = MNIST(root="./data", transform=[lambda x: x / 255.0,
@@ -16,8 +17,9 @@ test_images, test_labels = mnist.test_images, mnist.test_labels
 plt.figure(figsize=(10, 10))
 for i in range(16):
     plt.subplot(4, 4, i + 1)
-    plt.imshow(train_images[random.randint(0, len(train_images))], cmap="gray")
-    plt.title(f"Label: {train_labels[random.randint(0, len(train_labels))]}")
+    img_idx = random.randint(0, len(train_images))
+    plt.imshow(train_images[img_idx].reshape(28, 28), cmap="gray")
+    plt.title(f"Label: {train_labels[img_idx]}")
     plt.axis("off")
 plt.show()
 # 超参数
@@ -29,11 +31,13 @@ hidden_size = [256, 128, 64]
 
 net = NeuralNetwork(in_size=784, out_size=10, hidden_layer_num=hidden_layer_num, hidden_size=hidden_size)
 
-loss_list = []
+train_loss_list = []
+test_loss_list = []
 accuracy_list = []
 for epoch in range(epochs):
     batch_index = 0
-    tmp_loss = []
+    tmp_train_loss = []
+    tmp_test_loss = []
     while batch_index < len(train_images):  # 小批量梯度下降
         batch_x = train_images[batch_index: batch_index + batch_size]
         batch_y = train_labels[batch_index: batch_index + batch_size]
@@ -45,13 +49,23 @@ for epoch in range(epochs):
         # update
         net.update(lr)
         # loss
-        tmp_loss.append(net.loss(batch_x, batch_y))
-    loss_list.append(np.mean(tmp_loss).item())
-    accuracy_list.append(net.accuracy(test_images, test_labels))
-    print(f"Epoch: {epoch + 1}, Loss: {loss_list[-1]}, Accuracy: {accuracy_list[-1]}")
+        tmp_train_loss.append(net.loss(batch_x, batch_y))
+    train_loss_list.append(np.mean(tmp_train_loss).item())
+    l, acc = test(net, test_images, test_labels)
+    test_loss_list.append(l)
+    accuracy_list.append(acc)
+
+    # 验证
+    l, acc = test(net, test_images, test_labels)
+
+    print(f"Epoch: {epoch + 1}, Loss: {train_loss_list[-1]:.4f}, Accuracy: {accuracy_list[-1]:.4f}")
+
+net.save("result/params.pkl")
 # 保存数据
-save_data(loss_list, "result/loss.txt")
+save_data(train_loss_list, "result/train_loss.txt")
+save_data(test_loss_list, "result/test_loss.txt")
 save_data(accuracy_list, "result/accuracy.txt")
 # 可视化并保存
-show_save_fig(loss_list, y_label="loss", title="Loss", save_path="result/loss.png")
+show_save_fig(train_loss_list, y_label="loss", title="Train Loss", save_path="result/train_loss.png")
+show_save_fig(test_loss_list, y_label="loss", title="Test Loss", save_path="result/test_loss.png")
 show_save_fig(accuracy_list, y_label="accuracy", title="Accuracy", save_path="result/accuracy.png")

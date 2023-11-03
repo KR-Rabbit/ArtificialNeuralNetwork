@@ -1,32 +1,39 @@
+import pathlib
 from typing import Iterable
 
 import numpy as np
 
 
 class NeuralNetwork:
-    def __init__(self, in_size=784, out_size=10, hidden_layer_num=2, hidden_size=None):
+    def __init__(self, in_size=784, out_size=10, hidden_layer_num=2, hidden_size=None, detect=False):
         self.in_size = in_size  # 输入特征的个数
         self.out_size = out_size  # 输出特征的个数
         self.hidden_layer_num = hidden_layer_num  # 隐藏层数
-        if hidden_size is None:
-            self.hidden_size = [in_size // 2] * hidden_layer_num  # 隐藏层的神经元个数
-        elif isinstance(hidden_size, int):
-            # 线性递减
-            self.hidden_size = [in_size // (2 ** i) for i in range(hidden_layer_num)]
-        elif isinstance(hidden_size, Iterable):
-            if hasattr(hidden_size, "__len__") and len(hidden_size) == hidden_layer_num:
-                self.hidden_size = hidden_size
+        self.hidden_size = hidden_size  # 隐藏层的神经元个数
+        self.check()
+        if not detect:  # 如果不是检测模式，就随机初始化权重
+            self.__weights = {f"w{i + 1}": np.random.randn(s1, s2) for i, (s1, s2) in
+                              enumerate(zip([self.in_size] + self.hidden_size,
+                                            self.hidden_size + [self.out_size]))}  # 权重，字典类型，记录每层的权重
+            self.__bias = {f"b{i + 1}": np.random.randn(s) for i, s in
+                           enumerate(self.hidden_size + [self.out_size])}  # 偏置
+            self.__grads = {f"w{i + 1}": np.zeros_like(w) for i, w in
+                            enumerate(self.__weights.values())}  # 权重梯度，记录每层的梯度
+            self.__grads.update({f"b{i + 1}": np.zeros_like(b) for i, b in enumerate(self.__bias.values())})
+            self.__cache = {}  # 缓存，记录每层的输出，用于反向传播
+
+    def check(self):
+        if self.hidden_size is None:
+            self.hidden_size = [self.in_size // 2] * self.hidden_layer_num  # 隐藏层的神经元个数
+        elif isinstance(self.hidden_size, int):
+            self.hidden_size = [self.hidden_size] * self.hidden_layer_num
+        elif isinstance(self.hidden_size, Iterable):
+            if hasattr(self.hidden_size, "__len__") and len(self.hidden_size) == self.hidden_layer_num:
+                self.hidden_size = self.hidden_size
             else:
-                self.hidden_size = [in_size // (2 ** i) for i in range(hidden_layer_num)]
+                self.hidden_size = [self.in_size // (2 ** i) for i in range(self.hidden_layer_num)]
         else:
             raise TypeError("hidden_size must be int or Iterable")
-        self.__weights = {f"w{i + 1}": np.random.randn(s1, s2) for i, (s1, s2) in
-                          enumerate(zip([self.in_size] + self.hidden_size,
-                                        self.hidden_size + [self.out_size]))}  # 权重，字典类型，记录每层的权重
-        self.__bias = {f"b{i + 1}": np.random.randn(s) for i, s in enumerate(self.hidden_size + [self.out_size])}  # 偏置
-        self.__grads = {f"w{i + 1}": np.zeros_like(w) for i, w in enumerate(self.__weights.values())}  # 权重梯度，记录每层的梯度
-        self.__grads.update({f"b{i + 1}": np.zeros_like(b) for i, b in enumerate(self.__bias.values())})
-        self.__cache = {}  # 缓存，记录每层的输出，用于反向传播
 
     def forward(self, x):  # 前向传播
         self.__cache["a0"] = x  # a0 = x
@@ -50,15 +57,16 @@ class NeuralNetwork:
         # delta = y_pred - y
         y = self.one_hot_encode(y)
         delta = y_pred - y  # dJ/da = y_pred - y 交叉熵损失对于a的导数为y_pred - y
-        # 计算最后一层的梯度 # dJ/dw = a * dJ/da
-        # 剩余部分的梯度与普通的逻辑回归相同，利用链式法则计算
-        self.__grads[f"w{self.hidden_layer_num + 1}"] = np.dot(self.__cache[f"a{self.hidden_layer_num}"].T, delta)
-        self.__grads[f"b{self.hidden_layer_num + 1}"] = np.sum(delta, axis=0)
+        self.__grads[f"w{self.hidden_layer_num + 1}"] = np.dot(self.__cache[f"a{self.hidden_layer_num}"].T,
+                                                               delta) / len(y)
+        self.__grads[f"b{self.hidden_layer_num + 1}"] = np.sum(delta, axis=0) / len(y)
         # 计算前面的梯度
+        pred_grad = delta
         for i in range(self.hidden_layer_num, 0, -1):
-            delta = np.dot(delta, self.__weights[f"w{i + 1}"].T) * self.__cache[f"a{i}"] * (1 - self.__cache[f"a{i}"])
-            self.__grads[f"w{i}"] = np.dot(self.__cache[f"a{i - 1}"].T, delta)
-            self.__grads[f"b{i}"] = np.sum(delta, axis=0)
+            pred_grad = np.dot(pred_grad, self.__weights[f"w{i + 1}"].T) * self.__cache[f"a{i}"] * (
+                    1 - self.__cache[f"a{i}"])
+            self.__grads[f"w{i}"] = np.dot(self.__cache[f"a{i - 1}"].T, pred_grad)
+            self.__grads[f"b{i}"] = np.sum(pred_grad, axis=0)
 
     def update(self, lr):  # 更新参数
         for i in range(1, self.hidden_layer_num + 1):
@@ -87,9 +95,25 @@ class NeuralNetwork:
     def predict(self, x):
         return np.argmax(self.forward(x), axis=1)
 
-    def accuracy(self, x, y):  # y是one-hot编码前的y,即y_true
-        return np.sum(self.predict(x) == np.argmax(self.one_hot_encode(y), axis=1)) / len(x)
+    def save(self, path):
+        path = pathlib.Path(path)
+        parent = path.parent
+        if not parent.exists():
+            parent.mkdir(parents=True)
+        with path.open("wb") as f:
+            # 保存权重，输入维度，输出维度，隐藏层数，隐藏层维度
+            np.savez(f, **self.__weights, **self.__bias, in_size=self.in_size, out_size=self.out_size,
+                     hidden_layer_num=self.hidden_layer_num, hidden_size=self.hidden_size)
 
-    def save(self):
-        with open("result/net_weight.npz", "wb") as f:
-            np.savez(f, **self.__weights, **self.__bias)
+    # 加载权重
+    def load(self, path):
+        path = pathlib.Path(path)
+        assert path.exists()
+        with path.open("rb") as f:
+            data = np.load(f)
+            self.__weights = {k: v for k, v in data.items() if k.startswith("w")}
+            self.__bias = {k: v for k, v in data.items() if k.startswith("b")}
+            self.in_size = data["in_size"]
+            self.out_size = data["out_size"]
+            self.hidden_layer_num = data["hidden_layer_num"]
+            self.hidden_size = data["hidden_size"]
