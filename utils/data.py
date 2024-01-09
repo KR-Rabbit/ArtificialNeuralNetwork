@@ -100,8 +100,8 @@ class MNIST:
             return transform(data)
 
 
-def show_save_fig(data, x_label="epoch", y_label="loss", title="Loss", save_path=None, fig_size=(10, 8)):
-    plt.figure(figsize=fig_size)
+def show_save_fig(data, x_label="epoch", y_label="loss", title="Loss", save_path=None, fig_size=(10, 8), dpi=300):
+    plt.figure(figsize=fig_size, dpi=dpi)
     plt.plot(data)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
