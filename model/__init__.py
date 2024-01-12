@@ -17,9 +17,9 @@ class NeuralNetwork:
         self.check()
         self.__detect_mode = detect
         if not detect:  # 如果不是检测模式，就随机初始化权重
-            self.train()
+            self.init_param()
 
-    def train(self):
+    def init_param(self):
         self.__weights = {f"w{i + 1}": np.random.randn(s1, s2) for i, (s1, s2) in
                           enumerate(zip([self.__in_size] + self.__hidden_size,
                                         self.__hidden_size + [self.__out_size]))}  # 权重，字典类型，记录每层的权重
@@ -32,6 +32,9 @@ class NeuralNetwork:
 
     def detect(self):
         self.__detect_mode = True
+
+    def train(self):
+        self.__detect_mode = False
 
     def check(self):
         if self.__hidden_size is None:
@@ -76,6 +79,7 @@ class NeuralNetwork:
 
     def backward(self, y, y_pred):  # 反向传播
         # delta = y_pred - y
+        #y_pred 网络的直接输出，概率值
         y = self.one_hot_encode(y)
         delta = y_pred - y  # dJ/da = y_pred - y 交叉熵损失对于a的导数为y_pred - y
         self.__grads[f"w{self.__hidden_layer_num + 1}"] = np.dot(self.__cache[f"a{self.__hidden_layer_num}"].T,
@@ -109,9 +113,9 @@ class NeuralNetwork:
     def softmax(x):  # softmax函数
         return np.exp(x) / np.sum(np.exp(x), axis=1, keepdims=True)
 
-    def loss(self, x, y_true):
+    def loss(self, y_pred, y_true):
         y = self.one_hot_encode(y_true)
-        return -np.sum(y * np.log(self.forward(x))) / len(x)
+        return -np.sum(y * np.log(y_pred) / len(y_pred))
 
     def predict(self, x):
         return np.argmax(self.forward(x), axis=1)
@@ -138,3 +142,6 @@ class NeuralNetwork:
             self.__out_size = data["out_size"]
             self.__hidden_layer_num = data["hidden_layer_num"]
             self.__hidden_size = data["hidden_size"]
+
+    def __call__(self, x):
+        return self.forward(x)
