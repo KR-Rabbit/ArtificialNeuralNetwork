@@ -1,12 +1,15 @@
 import argparse
 import random
+import time
 
-import numpy as np
 from matplotlib import pyplot as plt
-
 from model import NeuralNetwork
-from utils import test
+from utils import increment_path, get_root, LOGGER, colorstr, time_format
 from utils.data import MNIST, save_data, show_save_fig
+import val as validate
+from tqdm import tqdm
+
+ROOT = get_root(__file__, 0)
 
 
 def main(opt):
@@ -15,7 +18,8 @@ def main(opt):
     # 数据集
     train_images, train_labels = mnist.train_images, mnist.train_labels
     test_images, test_labels = mnist.test_images, mnist.test_labels
-
+    save_dir = increment_path(opt.project / opt.name)
+    save_dir.mkdir(parents=True, exist_ok=True)
     # 可视化,随机显示16张图片
     if opt.show:
         plt.figure(figsize=(10, 10))
@@ -38,41 +42,51 @@ def main(opt):
     train_loss_list = []
     test_loss_list = []
     accuracy_list = []
+    main_batch = len(train_images) // batch_size
+    res_batch = len(train_images) % batch_size
+    bar_total = main_batch + (1 if res_batch else 0)
+    t1 = time.time()
     for epoch in range(epochs):
+        net.train()
         batch_index = 0
-        tmp_train_loss = []
-        tmp_test_loss = []
+        mt_loss = 0.0  # 平均训练损失，累计移动平均
+        pbar = tqdm(range(bar_total), bar_format="{l_bar}{bar:10}{r_bar}")
         while batch_index < len(train_images):  # 小批量梯度下降
+            pbar.set_description(f"[Epoch {epoch + 1}/{epochs}]")
             batch_x = train_images[batch_index: batch_index + batch_size]
             batch_y = train_labels[batch_index: batch_index + batch_size]
             batch_index += batch_size
             # forward
-            y_pred = net.forward(batch_x)
+            y_pred = net(batch_x)
             # backward
             net.backward(batch_y, y_pred)
             # update
             net.update(lr)
             # loss
-            tmp_train_loss.append(net.loss(batch_x, batch_y))
-        train_loss_list.append(np.mean(tmp_train_loss).item())
-        l, acc = test(net, test_images, test_labels)
+            loss = net.loss(y_pred, batch_y)
+            mt_loss = (mt_loss * batch_index + loss) / (batch_index + 1)
+            pbar.set_postfix(loss=mt_loss)
+            pbar.update()
+        pbar.close()
+        # 验证
+        (acc, _, _, _), l = validate.run(data=mnist, net=net)
+        # 记录
+        train_loss_list.append(mt_loss)
         test_loss_list.append(l)
         accuracy_list.append(acc)
-
-        # 验证
-        l, acc = test(net, test_images, test_labels)
-
-        print(f"Epoch: {epoch + 1}, Loss: {train_loss_list[-1]:.4f}, Accuracy: {accuracy_list[-1]:.4f}")
-
-    net.save(f"{opt.save_path}/params.pkl")
+        LOGGER.info(colorstr('green', f"Train Loss: {mt_loss:.4f}, Test Loss: {l:.4f}, Accuracy: {acc:.4f}\n"))
+    t2 = time.time()
+    LOGGER.info(colorstr("Train Done! Finished with epochs " + colorstr('red', f"{epochs}") + colorstr(" in ") + colorstr('red', f"{time_format(t2 - t1)}")))
+    net.save(f"{save_dir}/params.pkl")
+    LOGGER.info(f"Save model to {save_dir.as_posix()}/params.pkl")
     # 保存数据
-    save_data(train_loss_list, f"{opt.save_path}/train_loss.txt")
-    save_data(test_loss_list, f"{opt.save_path}/test_loss.txt")
-    save_data(accuracy_list, f"{opt.save_path}/accuracy.txt")
+    save_data(train_loss_list, f"{save_dir}/train_loss.txt")
+    save_data(test_loss_list, f"{save_dir}/test_loss.txt")
+    save_data(accuracy_list, f"{save_dir}/accuracy.txt")
     # 可视化并保存
-    show_save_fig(train_loss_list, y_label="loss", title="Train Loss", save_path=f"{opt.save_path}/train_loss.png")
-    show_save_fig(test_loss_list, y_label="loss", title="Test Loss", save_path=f"{opt.save_path}/test_loss.png")
-    show_save_fig(accuracy_list, y_label="accuracy", title="Accuracy", save_path=f"{opt.save_path}/accuracy.png")
+    show_save_fig(train_loss_list, y_label="loss", title="Train Loss", save_path=f"{save_dir}/train_loss.png")
+    show_save_fig(test_loss_list, y_label="loss", title="Test Loss", save_path=f"{save_dir}/test_loss.png")
+    show_save_fig(accuracy_list, y_label="accuracy", title="Accuracy", save_path=f"{save_dir}/accuracy.png")
 
 
 def parser_opt():
@@ -82,8 +96,9 @@ def parser_opt():
     parser.add_argument("--batch-size", type=int, default=64, help="batch size")
     parser.add_argument("--hidden-layer-num", type=int, default=3, help="hidden layer num")
     parser.add_argument("--hidden-size", type=int, nargs="+", default=[256, 128, 64], help="hidden size")
-    parser.add_argument("--save-path", type=str, default="./result", help="save path")
-    parser.add_argument("--data", type=str, default="./data", help="data root")
+    parser.add_argument("--project", type=str, default=ROOT / "logs", help="save path")
+    parser.add_argument("--name", type=str, default="train", help="save name")
+    parser.add_argument("--data", type=str, default=ROOT / "data", help="data root")
     parser.add_argument("--show", action="store_true", help="show image")
     args = parser.parse_args()
     return args
