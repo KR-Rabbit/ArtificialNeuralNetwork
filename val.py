@@ -1,9 +1,7 @@
 import argparse
 
-import numpy as np
-
 from model import NeuralNetwork
-from utils import get_root, increment_path
+from utils import get_root, increment_path, LOGGER, colorstr
 from utils.confusion_matrix import *
 from utils.data import MNIST
 
@@ -12,7 +10,7 @@ ROOT = get_root(__file__, 1)
 
 def run(data,
         net=None,
-        bath_size=64,
+        batch_size=64,
         save_dir=ROOT / "logs/val",
         console=False,
         file=False,
@@ -26,7 +24,7 @@ def run(data,
                                             lambda x: x.reshape(x.shape[0], -1)])  # transform 原始数据 范围0-255,shape 28x28
     test_images, test_labels = mnist.test_images, mnist.test_labels
     # 加载模型
-    training = net is not None
+    training = isinstance(net, NeuralNetwork)
     if not training:
         net_path = net
         net = NeuralNetwork()
@@ -39,9 +37,9 @@ def run(data,
     batch_index = 0
     mv_loss = 0.0
     while batch_index < len(test_images):
-        batch_x = test_images[batch_index: batch_index + bath_size]
-        batch_y = test_labels[batch_index: batch_index + bath_size]
-        batch_index += bath_size
+        batch_x = test_images[batch_index: batch_index + batch_size]
+        batch_y = test_labels[batch_index: batch_index + batch_size]
+        batch_index += batch_size
         y_trues.extend(batch_y)
         y_pred = net(batch_x)
         loss = net.loss(y_pred, batch_y)
@@ -60,6 +58,8 @@ def run(data,
         if console or file:
             log_scores(scores, console=console, file=file, save_dir=save_dir)
         plot_confusionn_matrix(matrix, save_dir=save_dir, names=[i for i in range(10)])
+        save_matrix(matrix, save_dir=save_dir, labels=[i for i in range(10)])
+        LOGGER.info(colorstr("green", f"save result to {save_dir}"))
     return scores, mv_loss  # 返回评估结果
 
 
@@ -70,12 +70,12 @@ def parser_opt():
     parser.add_argument("--batch-size", type=int, default=64, help="batch size")
     parser.add_argument("--console", action="store_true", help="print result of evaluation")
     parser.add_argument("--file", action="store_true", help="save result of evaluation to txt")
-    parser.add_argument("--save_dir", type=str, default="./result", help="save dir")
+    parser.add_argument("--save_dir", type=str, default="./result/val", help="save dir")
     return parser.parse_args()
 
 
 def main(opt):
-    main(**vars(opt))
+    run(**vars(opt))
 
 
 if __name__ == '__main__':
