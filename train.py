@@ -17,7 +17,6 @@ def main(opt):
                                             lambda x: x.reshape(x.shape[0], -1)])  # transform 原始数据 范围0-255,shape 28x28
     # 数据集
     train_images, train_labels = mnist.train_images, mnist.train_labels
-    test_images, test_labels = mnist.test_images, mnist.test_labels
     save_dir = increment_path(opt.project / opt.name)
     save_dir.mkdir(parents=True, exist_ok=True)
     # 可视化,随机显示16张图片
