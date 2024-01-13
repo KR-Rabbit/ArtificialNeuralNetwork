@@ -2,6 +2,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix
 import seaborn as sn
@@ -57,9 +58,9 @@ def get_score(matrix):
     # 计算召回率
     recall = diag / sum_row
     # 计算F1值
-    precision[precision == 0] = 1e-10 # 防止除0
+    precision[precision == 0] = 1e-10  # 防止除0
     f1 = 2 * precision * recall / (precision + recall)
-    # 计算acc
+    # 计算acc,acc=
     acc = diag.sum() / matrix.sum()
     return acc, precision, recall, f1
 
@@ -83,3 +84,8 @@ def log_scores(scores: tuple, console=False, file=False, save_dir='.'):
     if file:
         with open(save_dir + "/score.txt") as f:
             f.write('\n'.join(contents))
+
+
+def save_matrix(matrix, save_dir, labels=None):
+    mt = pd.DataFrame(matrix, index=labels, columns=labels)
+    mt.to_excel(save_dir / "confusion_matrix.xlsx")
