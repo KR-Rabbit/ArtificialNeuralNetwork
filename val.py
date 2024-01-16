@@ -34,6 +34,7 @@ def run(data,
     # 测试
     y_trues = []
     y_preds = []
+    net_out = []  # item shape(bs,c)
     batch_index = 0
     mv_loss = 0.0
     while batch_index < len(test_images):
@@ -44,6 +45,7 @@ def run(data,
         y_pred = net(batch_x)
         loss = net.loss(y_pred, batch_y)
         mv_loss = (mv_loss * batch_index + loss) / (batch_index + 1)
+        net_out.extend(y_pred)
         y_preds.extend(np.argmax(y_pred, axis=1))
     # 转为一维数组
     y_trues = np.array(y_trues).reshape(-1)
@@ -52,15 +54,17 @@ def run(data,
     matrix = get_confusion_matrix(y_trues, y_preds, labels=[i for i in range(10)])
     # 评估 acc, precision, recall, f1
     scores = get_score(matrix)
+    # top1
+    mtop1,top1s = top_k(y_trues, net_out, k=1, pre_cls=True)
     if not training:
         save_dir = increment_path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         if console or file:
             log_scores(scores, console=console, file=file, save_dir=save_dir)
-        plot_confusionn_matrix(matrix, save_dir=save_dir, names=[i for i in range(10)])
+        plot_confusion_matrix(matrix, save_dir=save_dir, names=[i for i in range(10)])
         save_matrix(matrix, save_dir=save_dir, labels=[i for i in range(10)])
         LOGGER.info(colorstr("green", f"save result to {save_dir}"))
-    return scores, mv_loss  # 返回评估结果
+    return scores, mv_loss, (mtop1,top1s)  # 返回评估结果
 
 
 def parser_opt():

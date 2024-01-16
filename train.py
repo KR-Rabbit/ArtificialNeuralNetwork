@@ -5,6 +5,7 @@ import time
 from matplotlib import pyplot as plt
 from model import NeuralNetwork
 from utils import increment_path, get_root, LOGGER, colorstr, time_format
+from utils.confusion_matrix import log_scores, log_topk
 from utils.data import MNIST, save_data, show_save_fig
 import val as validate
 from tqdm import tqdm
@@ -68,12 +69,14 @@ def main(opt):
             pbar.update()
         pbar.close()
         # 验证
-        (acc, _, _, _), l = validate.run(data=mnist, net=net)
+        (acc, precision, recall, f1), mv_loss, (mtop1,top1s) = validate.run(data=mnist, net=net)
         # 记录
         train_loss_list.append(mt_loss)
-        test_loss_list.append(l)
+        test_loss_list.append(mv_loss)
         accuracy_list.append(acc)
-        LOGGER.info(colorstr('green', f"Train Loss: {mt_loss:.4f}, Test Loss: {l:.4f}, Accuracy: {acc:.4f}\n"))
+        LOGGER.info(colorstr('green', f"Train Loss: {mt_loss:.4f}, Test Loss: {mv_loss:.4f}, Accuracy: {acc:.4f} Top1: {mtop1:.4f} \n"))
+        # log_scores((acc, precision, recall, f1), console=True, file=False)
+        # log_topk((mtop1,top1s), console=True, file=False)
     t2 = time.time()
     LOGGER.info(colorstr("Train Done! Finished with epochs " + colorstr('red', f"{epochs}") + colorstr(" in ") + colorstr('red', f"{time_format(t2 - t1)}")))
     net.save(f"{save_dir}/params.pkl")
